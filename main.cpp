@@ -3,12 +3,13 @@
 #include <vector>
 #include <string>
 #include <time.h>
+#include <windows.h>
 
 using namespace std;
 
-const int CHIP_COUNT_1X1 = 1; //3
-const int CHIP_COUNT_2X1 = 1; //2
-const int CHIP_COUNT_3X1 = 1; //2
+const int CHIP_COUNT_1X1 = 5; //3
+const int CHIP_COUNT_2X1 = 5; //2
+const int CHIP_COUNT_3X1 = 5; //2
 
 const int MAX_GENERATION_STEPS = 25000;
 
@@ -20,6 +21,21 @@ void HowToPlay() {
 
 void Controls() {
     cout << "TODO !";
+}
+
+void ClearConsole() {
+    cout << "\x1B[2J\x1B[H" << flush;
+}
+
+int GetKey() {
+    while (true) {
+        for(int i = 8; i <= 256; i++) {
+            if(GetAsyncKeyState(i) & 0x7FFF) {
+                if( ( i >= 37 && i <= 40 ) || i == 81 )
+                return i;
+            }
+        }
+    }
 }
 
 // ' '- Empty
@@ -181,10 +197,15 @@ pair<vector<vector<char>>, bool> GenerateBoard(int size) {
 
             if(board[x][y] != ' ') continue;
 
-            if( (x + 1 < size) && (board[x + 1][y] != ' ')) continue;
-            if( (x - 1 >= 0) && (board[x - 1][y] != ' ')) continue;
-            if( (y + 1 < size) && (board[x][y + 1] != ' ')) continue;
-            if( (y - 1 >= 0) && (board[x][y - 1] != ' ')) continue;
+            if(x + 1 >= size) continue;
+            if(x - 1 < 0) continue;
+            if(x + 1 >= size) continue;
+            if(x - 1 < 0) continue;
+
+            if(board[x + 1][y] != ' ') continue;
+            if(board[x - 1][y] != ' ') continue;
+            if(board[x][y + 1] != ' ') continue;
+            if(board[x][y - 1] != ' ') continue;
 
             board[x][y] = 'O';
 
@@ -204,10 +225,7 @@ pair<vector<vector<char>>, bool> GenerateBoard(int size) {
     return { board, false };
 }
 
-void RenderBoard(vector<vector<char>> visibleBoard, vector<vector<char>> board, int size) {
-    char renderBuffer[RENDER_BUFFER_SIZE][RENDER_BUFFER_SIZE];
-    int activeZoneHeight = 0;
-
+vector<vector<char>> RenderBoard(vector<vector<char>> renderBuffer, vector<vector<char>> visibleBoard, vector<vector<char>> board, int size) {
     for(int i = 0; i < RENDER_BUFFER_SIZE; ++i)
         for(int j = 0; j < RENDER_BUFFER_SIZE; ++j)
             renderBuffer[i][j] = ' ';
@@ -250,6 +268,12 @@ void RenderBoard(vector<vector<char>> visibleBoard, vector<vector<char>> board, 
         renderBuffer[0][2 + i*2] = rowCount + 48;
     }
 
+    return renderBuffer;
+}
+
+void RenderRenderingBuffer(vector<vector<char>> renderBuffer) {
+    int activeZoneHeight = 0;
+
     //Find activeZoneHeight
     for(int i = 0; i < RENDER_BUFFER_SIZE; ++i)
         for(int j = 0; j < RENDER_BUFFER_SIZE; ++j)
@@ -258,7 +282,7 @@ void RenderBoard(vector<vector<char>> visibleBoard, vector<vector<char>> board, 
                     activeZoneHeight = i + 1;
 
     //Rendering
-    for(int i = 0; i < std::min(RENDER_BUFFER_SIZE, activeZoneHeight); ++i) {
+    for(int i = 0; i < min(RENDER_BUFFER_SIZE, activeZoneHeight); ++i) {
         for(int j = 0; j < RENDER_BUFFER_SIZE; ++j)
             cout << renderBuffer[i][j];
         cout << "\n";
@@ -303,7 +327,7 @@ void Puzzle() {
 
         break;
     }
-
+    
     pair<vector<vector<char>>, bool> boardRes = GenerateBoard(size);
     
     if(boardRes.second == true) {
@@ -328,8 +352,41 @@ void Puzzle() {
 
         visibleBoard[x][y] = board[x][y];
     }
- 
-    RenderBoard(visibleBoard, board, size);
+
+    vector<vector<char>> renderBuffer;
+    for(int i = 0; i < RENDER_BUFFER_SIZE; ++i) {
+        vector<char> tmp;
+        for(int j = 0; j < RENDER_BUFFER_SIZE; ++j)
+            tmp.push_back(' ');
+        renderBuffer.push_back(tmp);
+    }
+
+    ClearConsole();
+    renderBuffer = RenderBoard(renderBuffer, visibleBoard, board, size);
+    RenderRenderingBuffer(renderBuffer);
+
+    int xCursor = 0;
+    int yCursor = 0;
+
+    // 81 - Q (Exit)
+    while (GetKey() != 81) {
+        int key = GetKey();
+        
+        if(key == 37) { //37 - Left
+            if(yCursor - 2 >= 0) yCursor -= 2;
+        } else if(key == 38) { //38 - Up
+            if(xCursor - 1 >= 0) --xCursor;
+        } else if(key == 39) { //39 - Right
+            if(yCursor + 2 < RENDER_BUFFER_SIZE) yCursor += 2;
+        } else if(key == 40) { //40 - Down
+            if(xCursor + 1 < RENDER_BUFFER_SIZE) ++xCursor;
+        }
+
+        ClearConsole();
+        renderBuffer = RenderBoard(renderBuffer, visibleBoard, board, size);
+        renderBuffer[xCursor][yCursor] = '○';
+        RenderRenderingBuffer(renderBuffer);
+    }    
 }
 
 int main() {
