@@ -7,46 +7,52 @@
 
 using namespace std;
 
-const int CHIP_COUNT_1X1 = 5; //3
-const int CHIP_COUNT_2X1 = 5; //2
-const int CHIP_COUNT_3X1 = 5; //2
+const int CHIP_COUNT_1X1 = 3; //3
+const int CHIP_COUNT_2X1 = 2; //2
+const int CHIP_COUNT_3X1 = 2; //2
 
-const int MAX_GENERATION_STEPS = 25000;
+const int MAX_GENERATION_STEPS = 100000;
 
-const int RENDER_BUFFER_SIZE = 40;
+const int RENDER_BUFFER_SIZE = 80;
 
 void HowToPlay() {
-    cout << "TODO !";
+    string howToPlayScreenBuffer =
+        "\n"
+        "Objective / Rules                                                                                                 \n"
+        "Find all of the hidden ships.                                                                                     \n"
+        "The numbers across the top and down the side tell you how many ship pieces are in the respective row / column.    \n"
+        "The small ships across the top tell you which ships are hidden in the grid.                                       \n"
+        "A ship can only be found horizontally or vertically.                                                              \n"
+        "Ships are never adjacent to each other, neither vertically, horizontally, nor diagonally.                         \n"
+        "                                                                                                                  \n"
+        "Tiles:                                                                                                            \n"
+        "' '- Empty                                                                                                        \n"
+        "W - water                                                                                                         \n"
+        "O - 1x1 ship                                                                                                      \n"
+        "                                                                                                                  \n"
+        "T - Ship back                                                                                                     \n"
+        "V - Ship front                                                                                                    \n"
+        "0 - Chip middle                                                                                                   \n";
+
+    cout << howToPlayScreenBuffer;
 }
 
 void Controls() {
-    cout << "TODO !";
+    string controlsScreenBuffer = 
+        "\n"
+        "Controls          \n"
+        "Arrows - Move     \n"
+        "Q - quit game     \n"
+        "C - Check board   \n"
+        "M - Mark tile     \n"
+        "A - Answer        \n";
+
+    cout << controlsScreenBuffer;
 }
 
 void ClearConsole() {
     cout << "\x1B[2J\x1B[H" << flush;
 }
-
-int GetKey() {
-    while (true) {
-        for(int i = 8; i <= 256; i++) {
-            if(GetAsyncKeyState(i) & 0x7FFF) {
-                if( ( i >= 37 && i <= 40 ) || i == 81 )
-                return i;
-            }
-        }
-    }
-}
-
-// ' '- Empty
-//  W - water
-//
-//  O - 1x1 ship
-//
-//  //For 2x1 and 3x1 ships
-//  T - Ship back
-//  V - Ship front
-//  0 - Chip middle
 
 pair<vector<vector<char>>, bool> GenerateBoard(int size) {
     int steps = 0;
@@ -278,7 +284,7 @@ void RenderRenderingBuffer(vector<vector<char>> renderBuffer) {
     for(int i = 0; i < RENDER_BUFFER_SIZE; ++i)
         for(int j = 0; j < RENDER_BUFFER_SIZE; ++j)
             if(renderBuffer[i][j] != ' ')
-                if(activeZoneHeight < i)
+                if(activeZoneHeight <= i)
                     activeZoneHeight = i + 1;
 
     //Rendering
@@ -289,7 +295,40 @@ void RenderRenderingBuffer(vector<vector<char>> renderBuffer) {
     }
 }
 
-void Puzzle() {
+bool CheckBoard(vector<vector<char>> visibleBoard, vector<vector<char>> board, int size) {
+    for(int x = 0; x < size; ++x) {
+        for(int y = 0; y < size; ++y) {
+            char requiredTile = board[x][y];
+            char availableTile = visibleBoard[x][y];
+
+            if(requiredTile == 'T' || requiredTile == 'V' || requiredTile == '0' || requiredTile == 'O')
+                requiredTile == 'S';
+
+            if(availableTile == 'T' || availableTile == 'V' || availableTile == '0' || availableTile == 'O')
+                availableTile == 'S';
+
+            if(requiredTile != availableTile)
+                return false;
+        }   
+    }
+
+    return true;
+}
+
+vector<vector<char>> RenderTextOnRenderingBuffer(vector<vector<char>> renderBuffer, int x, int y, std::string text) {
+    if(y < 0 || y >= RENDER_BUFFER_SIZE) return renderBuffer;
+    
+    for(auto letter : text) {
+        if(x < 0 || x >= RENDER_BUFFER_SIZE) return renderBuffer;
+
+        renderBuffer[y][x] = letter;
+        ++x;
+    }
+
+    return renderBuffer;
+}
+
+bool Puzzle() {
     int size;
 
     string choosePuzzleSizeScreenBuffer = 
@@ -330,10 +369,15 @@ void Puzzle() {
     
     pair<vector<vector<char>>, bool> boardRes = GenerateBoard(size);
     
+    for(int i = 0; i < 500; ++i) {
+        boardRes = GenerateBoard(size);
+        if(boardRes.second == false) break; 
+    }
+
     if(boardRes.second == true) {
-        cout << "Failed to generate board, probably can't fit all ship on provided board (board size to small)";
-        return;
-    } 
+        cout << "Failed to generate board, probably can't fit all ship on provided board (board size to small), please try again \n";
+        return false;
+    }
 
     vector<vector<char>> board = boardRes.first;
     vector<vector<char>> visibleBoard;
@@ -345,12 +389,29 @@ void Puzzle() {
         visibleBoard.push_back(tmp);
     }
 
+    vector<pair<int, int>> blockedTiles;
+
     //Open a fiew random tiles
     for(int i = 0; i < size / 2; ++i) {
         int x = rand() % size;
         int y = rand() % size;
 
         visibleBoard[x][y] = board[x][y];
+        blockedTiles.push_back({x, y});
+    }
+
+    //Open a fiew tiles with ships
+    for(int i = 0; i < size / 3; ++i) {
+        while(true) {
+            int x = rand() % size;
+            int y = rand() % size;
+
+            if(board[x][y] == 'W') continue;
+
+            visibleBoard[x][y] = board[x][y];
+            blockedTiles.push_back({x, y});
+            break;
+        }
     }
 
     vector<vector<char>> renderBuffer;
@@ -361,54 +422,165 @@ void Puzzle() {
         renderBuffer.push_back(tmp);
     }
 
+    int xCursor = 2;
+    int yCursor = 2;
+
     ClearConsole();
     renderBuffer = RenderBoard(renderBuffer, visibleBoard, board, size);
+
+    renderBuffer = RenderTextOnRenderingBuffer(renderBuffer, 2 + 2 * size, 1, "Arrows - Move");
+    renderBuffer = RenderTextOnRenderingBuffer(renderBuffer, 2 + 2 * size, 2, "Q - quit game");
+    renderBuffer = RenderTextOnRenderingBuffer(renderBuffer, 2 + 2 * size, 3, "C - Check board");
+    renderBuffer = RenderTextOnRenderingBuffer(renderBuffer, 2 + 2 * size, 4, "M - Mark tile");
+    renderBuffer = RenderTextOnRenderingBuffer(renderBuffer, 2 + 2 * size, 5, "A - Answer");
+
+    renderBuffer[xCursor][yCursor] = 239;
     RenderRenderingBuffer(renderBuffer);
 
-    int xCursor = 0;
-    int yCursor = 0;
+    int wait = true;
+    while(wait)
+        for(int i = 8; i <= 256; i++)
+            if(!GetAsyncKeyState(65)) {
+                wait = false;
+                break;
+            }
 
-    // 81 - Q (Exit)
-    while (GetKey() != 81) {
-        int key = GetKey();
-        
-        if(key == 37) { //37 - Left
+    bool firstCycle = true;
+    while (!GetAsyncKeyState('q')) {
+        wait = true;
+
+        if(firstCycle) {
+            Sleep(500);
+            firstCycle = false;
+            continue;
+        }
+
+        while(wait)
+            for(int i = 8; i <= 256; i++)
+                if(GetAsyncKeyState(i) & 0x7FFF) {
+                    wait = false;
+                    break;
+                }
+
+        if(GetAsyncKeyState(37))       //37 - Left
             if(yCursor - 2 >= 0) yCursor -= 2;
-        } else if(key == 38) { //38 - Up
+        
+        if(GetAsyncKeyState(38))         //38 - Up
             if(xCursor - 1 >= 0) --xCursor;
-        } else if(key == 39) { //39 - Right
+        
+        if(GetAsyncKeyState(39))      //39 - Right
             if(yCursor + 2 < RENDER_BUFFER_SIZE) yCursor += 2;
-        } else if(key == 40) { //40 - Down
+        
+        if(GetAsyncKeyState(40))       //40 - Down
             if(xCursor + 1 < RENDER_BUFFER_SIZE) ++xCursor;
+
+        if(GetAsyncKeyState(81))       //81 - Exit
+            return false;
+
+        bool renderBlockedTileWarning = false;
+        if(GetAsyncKeyState(77)) {     //77 - M - Mark
+            int boardX = xCursor - 2;
+            int boardY = (yCursor / 2) - 1;
+
+            //Check for blocked tile
+            int blocked = false;
+            for(auto tile : blockedTiles) {
+                if(tile.first == boardX && tile.second == boardY)
+                    blocked = true;
+            }
+
+            if(!blocked) {
+                if(boardX < 0 || boardX >= size) continue;
+                if(boardY < 0 || boardY >= size) continue;
+
+                char chosenTile = visibleBoard[boardX][boardY];
+
+                if(chosenTile == ' ')
+                    visibleBoard[boardX][boardY] = 'W';
+                else if(chosenTile == 'W')
+                    visibleBoard[boardX][boardY] = 'S';
+                else if(chosenTile == 'S')
+                    visibleBoard[boardX][boardY] = ' ';   
+            } else
+                renderBlockedTileWarning = true;
+        }
+
+        bool renderMistakeWarning = false;
+
+        if(GetAsyncKeyState(67)) {     //67 - C - Check if board correct
+            bool res = CheckBoard(visibleBoard, board, size);
+
+            if(res == true) {
+                return true;
+            } else {
+                renderMistakeWarning = true;
+            }
+        }
+
+        bool renderAnswerNote = false;
+
+        if(GetAsyncKeyState(65)) {     //65 - A - Answer
+            for(int x = 0; x < size; ++x) {
+                for(int y = 0; y < size; ++y) {
+                    visibleBoard[x][y] = board[x][y];
+                }
+            }
+
+            renderAnswerNote = true;
         }
 
         ClearConsole();
         renderBuffer = RenderBoard(renderBuffer, visibleBoard, board, size);
-        renderBuffer[xCursor][yCursor] = '○';
+
+        if(renderBlockedTileWarning)
+            renderBuffer = RenderTextOnRenderingBuffer(renderBuffer, 2, 3 + size, "This tile was given to you at the start and cannot be changed");
+
+        if(renderMistakeWarning)
+            renderBuffer = RenderTextOnRenderingBuffer(renderBuffer, 2, 3 + size, "Mistakes Found");
+
+        if(renderAnswerNote)
+            renderBuffer = RenderTextOnRenderingBuffer(renderBuffer, 2, 3 + size, "Answer revealed");
+        
+        renderBuffer = RenderTextOnRenderingBuffer(renderBuffer, 2 + 2 * size, 1, "Arrows - Move");
+        renderBuffer = RenderTextOnRenderingBuffer(renderBuffer, 2 + 2 * size, 2, "Q - quit game");
+        renderBuffer = RenderTextOnRenderingBuffer(renderBuffer, 2 + 2 * size, 3, "C - Check board");
+        renderBuffer = RenderTextOnRenderingBuffer(renderBuffer, 2 + 2 * size, 4, "M - Mark tile");
+        renderBuffer = RenderTextOnRenderingBuffer(renderBuffer, 2 + 2 * size, 5, "A - Answer");
+
+        renderBuffer[xCursor][yCursor] = 239;
         RenderRenderingBuffer(renderBuffer);
+
+        if(renderAnswerNote)
+            return false;
     }    
+
+    return false;
 }
 
 int main() {
     srand(time(NULL));
 
-    string welcomeScreenBuffer =
-        "       Daily Battleships     \n"
-        "1. Begin Puzzle              \n"
-        "2. How to play               \n"
-        "3. Controls                  \n"
-        "4. Exit                      \n";
-
-    cout << welcomeScreenBuffer;
-
     while(true) {
+        string welcomeScreenBuffer =
+            "\n"
+            "       Daily Battleships     \n"
+            "1. Begin Puzzle              \n"
+            "2. How to play               \n"
+            "3. Controls                  \n"
+            "4. Exit                      \n";
+
+        cout << welcomeScreenBuffer;
+
         string tmp;
         cout << ">> ";
         cin >> tmp;
 
         if(tmp == "1") {
-            Puzzle();
-            return 0;
+            bool rez = Puzzle();
+
+            if(rez) {
+                cout << "Congratulations, you completed the game! :)";
+            }
         } else if(tmp == "2")
             HowToPlay();
         else if(tmp == "3")
